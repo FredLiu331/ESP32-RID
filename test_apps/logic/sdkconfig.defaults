@@ -1,2 +1,3 @@
 # The Unity UART menu busy-waits while idle, so it cannot coexist with IDLE task monitoring.
 CONFIG_ESP_TASK_WDT_INIT=n
+CONFIG_UNITY_ENABLE_64BIT=y
