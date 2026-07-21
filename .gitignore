@@ -5,3 +5,6 @@
 /test_apps/*/build/
 /test_apps/*/sdkconfig
 /test_apps/*/sdkconfig.old
+.cache/
+__pycache__/
+.pytest_cache/
