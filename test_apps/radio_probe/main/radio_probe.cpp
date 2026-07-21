@@ -52,8 +52,8 @@ constexpr std::array<uint8_t, 31> kRidAdvData = {
     0x00, 0x10, 'R', 'I', 'D', '-', 'P', 'R', 'O', 'B', 'E', '-', '0', '0', '0', '0', '0', '0', '0', '0', '0', '1', 0x00,
 };
 
-std::array<uint8_t, 42> make_beacon(const std::array<uint8_t, 6> &mac) {
-    std::array<uint8_t, 42> frame = {
+constexpr std::array<uint8_t, 41> make_beacon(const std::array<uint8_t, 6> &mac) {
+    std::array<uint8_t, 41> frame = {
         0x80, 0x00, 0x00, 0x00,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0, 0, 0, 0, 0, 0,
@@ -61,26 +61,78 @@ std::array<uint8_t, 42> make_beacon(const std::array<uint8_t, 6> &mac) {
         0x00, 0x00,
         0, 0, 0, 0, 0, 0, 0, 0,
         0x64, 0x00, 0x01, 0x04,
-        0x07, 0x00,
+        0x00, 0x00,
         0x01, 0x01, 0x8c,
     };
-    std::memcpy(frame.data() + 10, mac.data(), mac.size());
-    std::memcpy(frame.data() + 16, mac.data(), mac.size());
+    for (size_t i = 0; i < mac.size(); ++i) {
+        frame[10 + i] = mac[i];
+        frame[16 + i] = mac[i];
+    }
     return frame;
 }
 
-std::array<uint8_t, 30> make_nan_action(const std::array<uint8_t, 6> &mac) {
-    std::array<uint8_t, 30> frame = {
+constexpr std::array<uint8_t, 35> make_nan_action(const std::array<uint8_t, 6> &mac) {
+    std::array<uint8_t, 35> frame = {
         0xd0, 0x00, 0x00, 0x00,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0, 0, 0, 0, 0, 0,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0x00, 0x00,
         0x04, 0x09, 0x50, 0x6f, 0x9a, 0x13,
+        // Master Indication: ID 0, uint16 little-endian length 2,
+        // Master Preference 100, Random Factor 1. Format follows the Wi-Fi
+        // Alliance NAN definitions mirrored by Broadcom include/nan.h.
+        0x00, 0x02, 0x00, 0x64, 0x01,
     };
-    std::memcpy(frame.data() + 10, mac.data(), mac.size());
+    for (size_t i = 0; i < mac.size(); ++i) frame[10 + i] = mac[i];
     return frame;
 }
+
+template <size_t N>
+constexpr bool valid_beacon_ies(const std::array<uint8_t, N> &frame) {
+    constexpr size_t kFirstIe = 36;
+    if (N < kFirstIe + 2 || frame[0] != 0x80 || (frame[32] == 0 && frame[33] == 0) ||
+        (frame[34] & 0x01) == 0 || frame[kFirstIe] != 0 || frame[kFirstIe + 1] != 0) {
+        return false;
+    }
+    size_t offset = kFirstIe;
+    bool has_supported_rate = false;
+    while (offset < N) {
+        if (offset + 2 > N) return false;
+        const size_t next = offset + 2 + frame[offset + 1];
+        if (next > N) return false;
+        if (frame[offset] == 1 && frame[offset + 1] > 0) has_supported_rate = true;
+        offset = next;
+    }
+    return offset == N && has_supported_rate;
+}
+
+template <size_t N>
+constexpr bool valid_nan_attributes(const std::array<uint8_t, N> &frame) {
+    constexpr size_t kFirstAttribute = 30;
+    if (N <= kFirstAttribute || frame[24] != 0x04 || frame[25] != 0x09 ||
+        frame[26] != 0x50 || frame[27] != 0x6f || frame[28] != 0x9a || frame[29] != 0x13) {
+        return false;
+    }
+    size_t offset = kFirstAttribute;
+    size_t attribute_count = 0;
+    while (offset < N) {
+        if (offset + 3 > N) return false;
+        const size_t length = frame[offset + 1] | (static_cast<size_t>(frame[offset + 2]) << 8);
+        const size_t next = offset + 3 + length;
+        if (next > N) return false;
+        ++attribute_count;
+        offset = next;
+    }
+    return offset == N && attribute_count > 0 && frame[kFirstAttribute] == 0 &&
+           frame[kFirstAttribute + 1] == 2 && frame[kFirstAttribute + 2] == 0 &&
+           frame[kFirstAttribute + 3] != 0;
+}
+
+constexpr std::array<uint8_t, 6> kValidationMac = {0x02, 0, 0, 0, 0, 1};
+static_assert(valid_beacon_ies(make_beacon(kValidationMac)), "Beacon IEs must be well formed");
+static_assert(valid_nan_attributes(make_nan_action(kValidationMac)),
+              "NAN action frame must contain a valid Master Indication attribute");
 
 void set_nimble_error(ProbeResult *result, int rc) {
     if (result != nullptr && rc != 0) {
