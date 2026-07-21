@@ -56,6 +56,7 @@ ValidationResult validate(const SystemConfig &config) {
             return ValidationResult{ConfigError::DuplicateGroupName};
         }
         if (!supported(group)) return ValidationResult{ConfigError::UnsupportedCombination};
+        if (!valid(group.trajectory)) return ValidationResult{ConfigError::InvalidTrajectory};
         if (group.default_period.has_value() && !valid_period(*group.default_period)) {
             return ValidationResult{ConfigError::InvalidPeriod};
         }

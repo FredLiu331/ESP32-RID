@@ -10,16 +10,12 @@
 #include <vector>
 
 #include "rid/model.hpp"
+#include "rid/trajectory.hpp"
 
 namespace rid {
 
 constexpr size_t kMessageKindCount = static_cast<size_t>(MessageKind::OperatorId) + 1;
 constexpr size_t kMaxAircraft = 50;
-
-struct GeoPoint {
-    double latitude_deg;
-    double longitude_deg;
-};
 
 struct GroupConfig {
     GroupConfig() = default;
@@ -35,6 +31,7 @@ struct GroupConfig {
     Protocol protocol{Protocol::OpenDroneId};
     Transport transport{Transport::Ble4};
     WifiMode wifi_mode{WifiMode::Beacon};
+    TrajectoryConfig trajectory;
     std::optional<std::chrono::milliseconds> default_period;
     std::array<std::optional<std::chrono::milliseconds>, kMessageKindCount> period_overrides{};
 };
@@ -64,6 +61,7 @@ enum class ConfigError : uint8_t {
     DuplicateGroupName,
     InvalidGroupCount,
     InvalidPeriod,
+    InvalidTrajectory,
     UnsupportedCombination,
     IdentityDerivationFailed,
 };

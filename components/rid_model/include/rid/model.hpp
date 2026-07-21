@@ -32,6 +32,11 @@ struct ByteView {
     size_t size;
 };
 
+struct GeoPoint {
+    double latitude_deg;
+    double longitude_deg;
+};
+
 struct FlightState {
     double latitude_deg;
     double longitude_deg;

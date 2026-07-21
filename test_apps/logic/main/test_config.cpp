@@ -1,7 +1,9 @@
 #include <chrono>
+#include <limits>
 #include <set>
 
 #include "rid/config.hpp"
+#include "rid/trajectory.hpp"
 #include "unity.h"
 
 using namespace std::chrono_literals;
@@ -123,4 +125,28 @@ TEST_CASE("protocol transport and wifi mode combinations are enforced", "[config
     const auto defaults = rid::GroupConfig{"default_wifi", 1, rid::Protocol::OpenDroneId,
                                            rid::Transport::Wifi24};
     TEST_ASSERT_EQUAL(rid::WifiMode::Beacon, defaults.wifi_mode);
+}
+
+TEST_CASE("trajectory parameters are validated with the group", "[config]") {
+    auto config = base_config();
+    config.groups = {
+        rid::GroupConfig{"flight", 1, rid::Protocol::OpenDroneId, rid::Transport::Ble5},
+    };
+
+    config.groups[0].trajectory = rid::circle_trajectory(30.0F, 5.0F, 80.0F);
+    TEST_ASSERT_TRUE(rid::validate(config).ok());
+
+    config.groups[0].trajectory = rid::circle_trajectory(0.0F, 5.0F, 80.0F);
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
+    config.groups[0].trajectory = rid::line_trajectory(100.0F, 0.0F, 90.0F, 80.0F);
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
+    config.groups[0].trajectory = rid::rectangle_trajectory(40.0F, 0.0F, 5.0F, 80.0F);
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
+    config.groups[0].trajectory = rid::waypoint_trajectory({{0.0F, 0.0F, 10.0F}}, 5.0F);
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
+    config.groups[0].trajectory = rid::takeoff_cruise_land_trajectory(20.0F, 0.0F, 1000);
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
+    config.groups[0].trajectory =
+        rid::hover_trajectory(std::numeric_limits<float>::quiet_NaN());
+    TEST_ASSERT_EQUAL(rid::ConfigError::InvalidTrajectory, rid::validate(config).error());
 }
