@@ -34,13 +34,12 @@ constexpr uint32_t kWifiTxCount = 3;
 constexpr uint32_t kBleProcedureCount = 3;
 constexpr uint32_t kWaitStepMs = 10;
 constexpr uint32_t kWaitTimeoutMs = 5000;
-constexpr uint8_t kExtAdvInstance = 0;
-constexpr uint8_t kCoexistAdvInstance = 1;
+constexpr uint8_t kLegacyAdvInstance = 0;
+constexpr uint8_t kExtAdvInstance = 1;
+constexpr uint8_t kCoexistAdvInstance = 2;
 
 SemaphoreHandle_t g_ble_sync;
 ProbeResult *g_active_wifi_probe;
-ProbeResult *g_legacy_probe;
-ProbeResult *g_ext_probe;
 ProbeResult *g_coexist_probe;
 bool g_coexist_running;
 uint8_t g_ble_addr_type;
@@ -112,34 +111,6 @@ void wifi_tx_done(const esp_80211_tx_info_t *tx_info) {
     } else {
         result->last_error = ESP_FAIL;
     }
-}
-
-int start_legacy_cycle();
-
-int legacy_gap_event(ble_gap_event *event, void *) {
-    if (event->type != BLE_GAP_EVENT_ADV_COMPLETE || g_legacy_probe == nullptr) {
-        return 0;
-    }
-    if (event->adv_complete.reason != BLE_HS_ETIMEOUT) {
-        set_nimble_error(g_legacy_probe, event->adv_complete.reason);
-        return 0;
-    }
-    const uint32_t completed = __atomic_add_fetch(&g_legacy_probe->completed, 1U, __ATOMIC_RELAXED);
-    if (completed < kBleProcedureCount) {
-        set_nimble_error(g_legacy_probe, start_legacy_cycle());
-    }
-    return 0;
-}
-
-int start_legacy_cycle() {
-    ble_gap_adv_params params{};
-    params.conn_mode = BLE_GAP_CONN_MODE_NON;
-    params.disc_mode = BLE_GAP_DISC_MODE_NON;
-    const int rc = ble_gap_adv_start(g_ble_addr_type, nullptr, 80, &params, legacy_gap_event, nullptr);
-    if (rc == 0 && g_legacy_probe != nullptr) {
-        __atomic_add_fetch(&g_legacy_probe->submitted, 1U, __ATOMIC_RELAXED);
-    }
-    return rc;
 }
 
 int ext_gap_event(ble_gap_event *event, void *arg) {
@@ -257,8 +228,9 @@ void run_wifi_probe(ProbeResult *result, uint8_t channel, const std::array<uint8
     g_active_wifi_probe = nullptr;
 }
 
-int configure_ext_adv(uint8_t instance, ProbeResult *result) {
+int configure_ext_adv(uint8_t instance, bool legacy_pdu, ProbeResult *result) {
     ble_gap_ext_adv_params params{};
+    params.legacy_pdu = legacy_pdu;
     params.own_addr_type = g_ble_addr_type;
     params.primary_phy = BLE_HCI_LE_PHY_1M;
     params.secondary_phy = BLE_HCI_LE_PHY_1M;
@@ -280,21 +252,19 @@ int configure_ext_adv(uint8_t instance, ProbeResult *result) {
 
 void run_legacy_probe(ProbeResult *result) {
     result->api_supported = true;
-    g_legacy_probe = result;
-    int rc = ble_gap_adv_set_data(kRidAdvData.data(), kRidAdvData.size());
-    if (rc == 0) rc = start_legacy_cycle();
+    int rc = configure_ext_adv(kLegacyAdvInstance, true, result);
+    if (rc == 0) rc = ble_gap_ext_adv_start(kLegacyAdvInstance, 0, kBleProcedureCount);
+    if (rc == 0) ++result->submitted;
     set_nimble_error(result, rc);
     if (!wait_for_count(&result->completed, kBleProcedureCount, kWaitTimeoutMs) &&
         result->last_error == ESP_OK) {
         result->last_error = ESP_ERR_TIMEOUT;
     }
-    g_legacy_probe = nullptr;
 }
 
 void run_ext_probe(ProbeResult *result) {
     result->api_supported = true;
-    g_ext_probe = result;
-    int rc = configure_ext_adv(kExtAdvInstance, result);
+    int rc = configure_ext_adv(kExtAdvInstance, false, result);
     if (rc == 0) rc = ble_gap_ext_adv_start(kExtAdvInstance, 0, kBleProcedureCount);
     if (rc == 0) ++result->submitted;
     set_nimble_error(result, rc);
@@ -302,13 +272,12 @@ void run_ext_probe(ProbeResult *result) {
         result->last_error == ESP_OK) {
         result->last_error = ESP_ERR_TIMEOUT;
     }
-    g_ext_probe = nullptr;
 }
 
 void run_coexist_probe(ProbeResult *result) {
     result->api_supported = true;
     g_coexist_probe = result;
-    int rc = configure_ext_adv(kCoexistAdvInstance, result);
+    int rc = configure_ext_adv(kCoexistAdvInstance, false, result);
     if (rc == 0) {
         g_coexist_running = true;
         rc = ble_gap_ext_adv_start(kCoexistAdvInstance, 0, 1);
