@@ -1,0 +1,10 @@
+[[dependency]]
+name = "opendroneid-core-c"
+repository = "https://github.com/opendroneid/opendroneid-core-c.git"
+commit = "4b266c7c33e5299bfbe8427ed8518e869e3a7d7f"
+baseline = "ASTM F3411-22a, OpenDroneID protocol version 2"
+license = "Apache-2.0"
+license_sha256 = "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+source_c_sha256 = "60b0964f5f2a0dc13833eb6a304f7bd3f64bb9c227fae168c7caba53c82927c2"
+source_h_sha256 = "a60b9b38c4fa82d7c85437dc11f57f0dea4ebf8bb4b90b3ff3c21c585ccd55f4"
+vendored_path = "components/rid_odid/vendor"
