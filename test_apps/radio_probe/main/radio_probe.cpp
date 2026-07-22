@@ -71,23 +71,6 @@ constexpr std::array<uint8_t, 41> make_beacon(const std::array<uint8_t, 6> &mac)
     return frame;
 }
 
-constexpr std::array<uint8_t, 35> make_nan_action(const std::array<uint8_t, 6> &mac) {
-    std::array<uint8_t, 35> frame = {
-        0xd0, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0, 0, 0, 0, 0, 0,
-        0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-        0x00, 0x00,
-        0x04, 0x09, 0x50, 0x6f, 0x9a, 0x13,
-        // Master Indication: ID 0, uint16 little-endian length 2,
-        // Master Preference 100, Random Factor 1. Format follows the Wi-Fi
-        // Alliance NAN definitions mirrored by Broadcom include/nan.h.
-        0x00, 0x02, 0x00, 0x64, 0x01,
-    };
-    for (size_t i = 0; i < mac.size(); ++i) frame[10 + i] = mac[i];
-    return frame;
-}
-
 template <size_t N>
 constexpr bool valid_beacon_ies(const std::array<uint8_t, N> &frame) {
     constexpr size_t kFirstIe = 36;
@@ -107,32 +90,8 @@ constexpr bool valid_beacon_ies(const std::array<uint8_t, N> &frame) {
     return offset == N && has_supported_rate;
 }
 
-template <size_t N>
-constexpr bool valid_nan_attributes(const std::array<uint8_t, N> &frame) {
-    constexpr size_t kFirstAttribute = 30;
-    if (N <= kFirstAttribute || frame[24] != 0x04 || frame[25] != 0x09 ||
-        frame[26] != 0x50 || frame[27] != 0x6f || frame[28] != 0x9a || frame[29] != 0x13) {
-        return false;
-    }
-    size_t offset = kFirstAttribute;
-    size_t attribute_count = 0;
-    while (offset < N) {
-        if (offset + 3 > N) return false;
-        const size_t length = frame[offset + 1] | (static_cast<size_t>(frame[offset + 2]) << 8);
-        const size_t next = offset + 3 + length;
-        if (next > N) return false;
-        ++attribute_count;
-        offset = next;
-    }
-    return offset == N && attribute_count > 0 && frame[kFirstAttribute] == 0 &&
-           frame[kFirstAttribute + 1] == 2 && frame[kFirstAttribute + 2] == 0 &&
-           frame[kFirstAttribute + 3] != 0;
-}
-
 constexpr std::array<uint8_t, 6> kValidationMac = {0x02, 0, 0, 0, 0, 1};
 static_assert(valid_beacon_ies(make_beacon(kValidationMac)), "Beacon IEs must be well formed");
-static_assert(valid_nan_attributes(make_nan_action(kValidationMac)),
-              "NAN action frame must contain a valid Master Indication attribute");
 
 void set_nimble_error(ProbeResult *result, int rc) {
     if (result != nullptr && rc != 0) {
@@ -398,8 +357,6 @@ extern "C" void app_main() {
 
     ProbeResult beacon6{"wifi_beacon_ch6", wifi_ready, 0, 0, wifi_error};
     ProbeResult beacon149{"wifi_beacon_ch149", wifi_ready, 0, 0, wifi_error};
-    ProbeResult nan6{"wifi_nan_ch6", wifi_ready, 0, 0, wifi_error};
-    ProbeResult nan149{"wifi_nan_ch149", wifi_ready, 0, 0, wifi_error};
     ProbeResult ble4{"ble4", ble_ready, 0, 0, ble_error};
     ProbeResult ble5{"ble5", ble_ready, 0, 0, ble_error};
     ProbeResult coexist{"coexist_hop", wifi_ready && ble_ready, 0, 0,
@@ -409,11 +366,8 @@ extern "C" void app_main() {
 
     if (wifi_ready) {
         auto beacon = make_beacon(mac);
-        auto nan = make_nan_action(mac);
         run_wifi_probe(&beacon6, 6, beacon);
         run_wifi_probe(&beacon149, 149, beacon);
-        run_wifi_probe(&nan6, 6, nan);
-        run_wifi_probe(&nan149, 149, nan);
     }
     if (ble_ready) {
         run_legacy_probe(&ble4);
@@ -423,8 +377,6 @@ extern "C" void app_main() {
 
     print_result(beacon6, kWifiTxCount);
     print_result(beacon149, kWifiTxCount);
-    print_result(nan6, kWifiTxCount);
-    print_result(nan149, kWifiTxCount);
     print_result(ble4, kBleProcedureCount);
     print_result(ble5, kBleProcedureCount);
     print_result(coexist, 1);

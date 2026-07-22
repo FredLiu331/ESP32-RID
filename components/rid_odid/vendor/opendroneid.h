@@ -682,30 +682,6 @@ void drone_export_gps_data(const ODID_UAS_Data *UAS_Data, char *buf, size_t buf_
  */
 int odid_message_build_pack(const ODID_UAS_Data *UAS_Data, void *pack, size_t buflen);
 
-/* odid_wifi_build_nan_sync_beacon_frame - creates a NAN sync beacon frame
- * that shall be send just before the NAN action frame.
- * @mac: mac address of the wifi adapter where the NAN frame will be sent
- * @buf: pointer to buffer space where the NAN will be written to
- * @buf_size: maximum size of the buffer
- *
- * Returns the packet length on success, or < 0 on error.
- */
-int odid_wifi_build_nan_sync_beacon_frame(const char *mac, uint8_t *buf, size_t buf_size);
-
-/* odid_wifi_build_message_pack_nan_action_frame - creates a message pack
- * with each type of message from the drone information into an NAN action frame.
- * @UAS_Data: general drone status information
- * @mac: mac address of the wifi adapter where the NAN frame will be sent
- * @send_counter: sequence number, to be increased for each call of this function
- * @buf: pointer to buffer space where the NAN will be written to
- * @buf_size: maximum size of the buffer
- *
- * Returns the packet length on success, or < 0 on error.
- */
-int odid_wifi_build_message_pack_nan_action_frame(const ODID_UAS_Data *UAS_Data, const char *mac,
-                                                  uint8_t send_counter,
-                                                  uint8_t *buf, size_t buf_size);
-
 /* odid_wifi_build_message_pack_beacon_frame - creates a message pack
  * with each type of message from the drone information into an Beacon frame.
  * @UAS_Data: general drone status information
@@ -732,18 +708,6 @@ int odid_wifi_build_message_pack_beacon_frame(const ODID_UAS_Data *UAS_Data, con
  * Returns message pack length on success, or < 0 on error.
  */
 int odid_message_process_pack(ODID_UAS_Data *UAS_Data, const uint8_t *pack, size_t buflen);
-
-/* odid_wifi_receive_message_pack_nan_action_frame - processes a received message pack
- * with each type of message from the drone information into an NAN action frame
- * @UAS_Data: general drone status information
- * @mac: mac address of the wifi adapter where the NAN frame will be sent
- * @buf: pointer to buffer space where the NAN is stored
- * @buf_size: maximum size of the buffer
- *
- * Returns 0 on success, or < 0 on error. Will fill 6 bytes into @mac.
- */
-int odid_wifi_receive_message_pack_nan_action_frame(ODID_UAS_Data *UAS_Data,
-                                                    char *mac, const uint8_t *buf, size_t buf_size);
 
 #ifndef ODID_DISABLE_PRINTF
 void printByteArray(const uint8_t *byteArray, uint16_t asize, int spaced);
