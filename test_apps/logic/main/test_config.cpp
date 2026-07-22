@@ -115,7 +115,7 @@ TEST_CASE("protocol transport and wifi mode combinations are enforced", "[config
     config.groups[0] =
         rid::GroupConfig{"odid_nan", 1, rid::Protocol::OpenDroneId, rid::Transport::Wifi58};
     config.groups[0].wifi_mode = rid::WifiMode::Nan;
-    TEST_ASSERT_TRUE(rid::validate(config).ok());
+    TEST_ASSERT_EQUAL(rid::ConfigError::UnsupportedCombination, rid::validate(config).error());
 
     config.groups[0].transport = static_cast<rid::Transport>(0xff);
     TEST_ASSERT_EQUAL(rid::ConfigError::UnsupportedCombination, rid::validate(config).error());
