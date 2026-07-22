@@ -67,6 +67,7 @@ TEST_CASE("scheduler removes expired payloads without touching other queues", "[
 }
 
 TEST_CASE("scheduler copies bounded payloads and saturates counters", "[scheduler]") {
+    static_assert(rid::kMaxScheduledPayloadSize == 158);
     rid::Scheduler scheduler(1);
     TEST_ASSERT_EQUAL(rid::ScheduleError::InvalidPayload,
                       scheduler.enqueue(rid::ScheduledPayload{}));

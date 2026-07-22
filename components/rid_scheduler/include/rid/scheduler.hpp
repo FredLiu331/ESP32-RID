@@ -10,7 +10,8 @@
 
 namespace rid {
 
-constexpr size_t kMaxScheduledPayloadSize = 153;
+// 153-byte OpenDroneID Message Pack plus the 5-byte BLE Service Data envelope.
+constexpr size_t kMaxScheduledPayloadSize = 158;
 
 enum class ScheduleError : uint8_t {
     None,
