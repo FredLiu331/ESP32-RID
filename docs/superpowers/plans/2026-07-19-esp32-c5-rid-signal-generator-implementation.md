@@ -650,7 +650,7 @@ git commit -m "feat: 添加 BLE RID 承载复用"
 - 创建：`test_apps/integration/main/test_wifi_transport.cpp`
 - 创建：`docs/protocol/transport-matrix.md`
 
-- [ ] **步骤 1：编写帧封装与驻留测试**
+- [x] **步骤 1：编写帧封装与驻留测试**
 
 ```cpp
 TEST_CASE("coordinator stays on the only active band", "[wifi]") {
@@ -666,7 +666,7 @@ TEST_CASE("coordinator stays on the only active band", "[wifi]") {
 
 逐字节测试 Beacon Vendor IE，测试信道 6/149 加权驻留、空队列不切换、切换失败重试和国家码固定为 `CN`。NAN 不属于产品 RID 承载，不实现原生或原始帧仿真。
 
-- [ ] **步骤 2：实现公开 API 后端**
+- [x] **步骤 2：实现公开 API 后端**
 
 ```cpp
 class WifiBackend {
@@ -682,11 +682,11 @@ public:
 
 射频初始化固定调用 `esp_wifi_set_max_tx_power()` 设置 Wi-Fi 传导功率 2 dBm，并通过 NimBLE 控制器公开 API 设置 BLE 传导功率 0 dBm。这两个值来自只读板级构建常量，Shell 不得暴露修改入口。
 
-- [ ] **步骤 3：完成支持矩阵**
+- [x] **步骤 3：完成支持矩阵**
 
 `transport-matrix.md` 对 GB/OpenDroneID 与 BLE4、BLE5、Wi-Fi Beacon 的每种组合标注“标准允许/工程禁止/板上已验证”。NAN 组合统一标注“工程禁止”。运行时校验直接使用同一张编译期表。
 
-- [ ] **步骤 4：板上运行双频与 BLE 共存测试并提交**
+- [x] **步骤 4：板上运行双频与 BLE 共存测试并提交**
 
 ```bash
 idf.py -C test_apps/integration build flash
