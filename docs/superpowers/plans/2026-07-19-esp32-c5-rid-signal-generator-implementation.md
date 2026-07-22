@@ -702,11 +702,11 @@ git commit -m "feat: 添加 Wi-Fi RID 与双频协调"
 - 创建：`components/rid_config/nvs_store.cpp`
 - 创建：`test_apps/integration/main/test_nvs_store.cpp`
 
-- [ ] **步骤 1：编写掉电与损坏测试**
+- [x] **步骤 1：编写掉电与损坏测试**
 
 测试无配置、有效配置、CRC 错误、结构版本不兼容和保存中断。有效配置往返后必须逐字段相等；损坏配置必须返回错误且不得产生可启动快照。测试还必须确认发送统计不会写入 NVS，重启后所有统计从零开始。
 
-- [ ] **步骤 2：实现双槽提交协议**
+- [x] **步骤 2：实现双槽提交协议**
 
 ```cpp
 struct StoredHeader {
@@ -718,9 +718,9 @@ struct StoredHeader {
 };
 ```
 
-使用 `cfg_a`、`cfg_b` 两个 NVS blob。写入非当前槽并校验读回后，再更新小型 `active_generation` 键。加载时选择 CRC 正确且代次最高的兼容槽。
+使用 `cfg_a`、`cfg_b` 两个 NVS blob。写入非当前槽并提交、校验读回后才报告成功；加载时独立校验两槽并选择 CRC 正确且代次最新的兼容槽。`active_generation` 不作为额外提交标记，因为 ESP-IDF v5.5.4 的 `nvs_commit()` 当前不提供独立原子屏障，冗余标记失败会与已完整写入的新槽产生矛盾语义。
 
-- [ ] **步骤 3：运行 NVS 集成测试并提交**
+- [x] **步骤 3：运行 NVS 集成测试并提交**
 
 ```bash
 idf.py -C test_apps/integration build flash
