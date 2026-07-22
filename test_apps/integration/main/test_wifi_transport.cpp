@@ -1,9 +1,14 @@
 #include <array>
+#include <cstring>
 #include <vector>
 
 #include "nvs_flash.h"
 #include "rid/radio_coordinator.hpp"
 #include "rid/wifi_transport.hpp"
+
+extern "C" {
+#include "opendroneid.h"
+}
 #include "unity.h"
 
 namespace {
@@ -92,6 +97,32 @@ TEST_CASE("external OpenDroneID Beacon validator rejects malformed IE boundaries
     TEST_ASSERT_EQUAL(rid::WifiFrameError::InvalidFrame,
                       rid::validate_opendroneid_beacon(
                           {frame.bytes.data(), static_cast<size_t>(frame.size - 1)}));
+}
+
+TEST_CASE("OpenDroneID Beacon builder emits FA0BBC service vendor IE", "[wifi]") {
+    ODID_UAS_Data uas{};
+    odid_initUasData(&uas);
+    uas.BasicIDValid[0] = 1;
+    uas.BasicID[0].IDType = ODID_IDTYPE_SERIAL_NUMBER;
+    uas.BasicID[0].UAType = ODID_UATYPE_HELICOPTER_OR_MULTIROTOR;
+    std::memcpy(uas.BasicID[0].UASID, "TEST-RID-0000001", ODID_ID_SIZE);
+
+    const char mac[] = "\x02\x11\x22\x33\x44\x55";
+    const char ssid[] = "RID-ODID";
+    std::array<uint8_t, rid::kMaxWifiFrameSize> bytes{};
+    const int size = odid_wifi_build_message_pack_beacon_frame(
+        &uas, mac, ssid, sizeof(ssid) - 1, 0x64, 0x2a, bytes.data(), bytes.size());
+    TEST_ASSERT_GREATER_THAN(0, size);
+    TEST_ASSERT_EQUAL_UINT8(0x80, bytes[0]);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(reinterpret_cast<const uint8_t *>(mac), bytes.data() + 10, 6);
+    const size_t vendor = 36 + 2 + sizeof(ssid) - 1 + 3;
+    TEST_ASSERT_EQUAL_UINT8(0xdd, bytes[vendor]);
+    TEST_ASSERT_EQUAL_UINT8(0xfa, bytes[vendor + 2]);
+    TEST_ASSERT_EQUAL_UINT8(0x0b, bytes[vendor + 3]);
+    TEST_ASSERT_EQUAL_UINT8(0xbc, bytes[vendor + 4]);
+    TEST_ASSERT_EQUAL_UINT8(0x0d, bytes[vendor + 5]);
+    TEST_ASSERT_EQUAL_UINT8(0x2a, bytes[vendor + 6]);
+    TEST_ASSERT_GREATER_THAN(vendor + 7, static_cast<size_t>(size));
 }
 
 TEST_CASE("empty coordinator does not select a channel", "[wifi]") {
