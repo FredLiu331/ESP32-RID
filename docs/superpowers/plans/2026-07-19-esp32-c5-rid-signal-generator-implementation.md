@@ -601,7 +601,7 @@ git commit -m "feat: 添加 RID 截止时间调度器"
 - 创建：`components/rid_radio/ble_transport.cpp`
 - 创建：`test_apps/integration/main/test_ble_transport.cpp`
 
-- [ ] **步骤 1：编写带假 GAP 后端的失败测试**
+- [x] **步骤 1：编写带假 GAP 后端的失败测试**
 
 ```cpp
 TEST_CASE("BLE transport rotates aircraft by deadline", "[ble]") {
@@ -615,7 +615,7 @@ TEST_CASE("BLE transport rotates aircraft by deadline", "[ble]") {
 }
 ```
 
-- [ ] **步骤 2：实现后端接口与 NimBLE 适配**
+- [x] **步骤 2：实现后端接口与 NimBLE 适配**
 
 ```cpp
 class BleGapBackend {
@@ -629,11 +629,11 @@ public:
 
 Legacy 和 Extended 广播分别校验载荷上限。广播完成回调只入队事件，不做编码或日志格式化。
 
-- [ ] **步骤 3：在开发板执行混合 BLE 测试**
+- [x] **步骤 3：在开发板执行混合 BLE 测试**
 
 至少轮换 25 个 BLE4 和 25 个 BLE5 实例 10 分钟，无控制器资源泄漏；提交数、完成数和错误数与串口统计一致。
 
-- [ ] **步骤 4：提交 BLE 承载**
+- [x] **步骤 4：提交 BLE 承载**
 
 ```bash
 git add components/rid_radio test_apps/integration
