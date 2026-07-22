@@ -105,7 +105,7 @@ TEST_CASE("OpenDroneID Beacon builder emits FA0BBC service vendor IE", "[wifi]")
     uas.BasicIDValid[0] = 1;
     uas.BasicID[0].IDType = ODID_IDTYPE_SERIAL_NUMBER;
     uas.BasicID[0].UAType = ODID_UATYPE_HELICOPTER_OR_MULTIROTOR;
-    std::memcpy(uas.BasicID[0].UASID, "TEST-RID-0000001", ODID_ID_SIZE);
+    std::strncpy(uas.BasicID[0].UASID, "TEST-RID-0000001", ODID_ID_SIZE);
 
     const char mac[] = "\x02\x11\x22\x33\x44\x55";
     const char ssid[] = "RID-ODID";
@@ -202,6 +202,19 @@ TEST_CASE("failed transmit keeps earliest-deadline payload and records radio err
     TEST_ASSERT_EQUAL_UINT8(1, backend.transmitted[1][0]);
     TEST_ASSERT_EQUAL_UINT64(1, coordinator.stats(rid::Transport::Wifi24).submitted);
     TEST_ASSERT_EQUAL_UINT64(0, coordinator.stats(rid::Transport::Wifi24).completed);
+}
+
+TEST_CASE("coordinator drops expired payload before transmit", "[wifi]") {
+    FakeWifiBackend backend;
+    rid::RadioCoordinator coordinator(backend, 100, 20);
+    auto expired = payload(rid::Transport::Wifi24, 1, 10);
+    expired.expires_at_ms = 50;
+    TEST_ASSERT_EQUAL(ESP_OK, coordinator.submit(expired));
+
+    TEST_ASSERT_EQUAL(ESP_OK, coordinator.poll(51));
+    TEST_ASSERT_EQUAL_UINT32(0, coordinator.depth(rid::Transport::Wifi24));
+    TEST_ASSERT_EQUAL_UINT32(0, backend.transmitted.size());
+    TEST_ASSERT_EQUAL_UINT64(1, coordinator.stats(rid::Transport::Wifi24).dropped);
 }
 
 TEST_CASE("ESP32-C5 submits GB Beacon on channels 6 and 149", "[wifi][hardware]") {

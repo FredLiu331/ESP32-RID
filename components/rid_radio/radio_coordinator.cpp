@@ -98,6 +98,11 @@ esp_err_t RadioCoordinator::poll(uint64_t now_ms) {
     if (pending_count_[active_band_] == 0) return ESP_OK;
     const size_t selected = earliest_index(active_band_);
     const ScheduledPayload &payload = pending_[active_band_][selected];
+    if (payload.expires_at_ms != 0 && now_ms > payload.expires_at_ms) {
+        increment(stats_[active_band_].dropped);
+        erase(active_band_, selected);
+        return ESP_OK;
+    }
     const esp_err_t result = backend_.transmit({payload.bytes.data(), payload.size});
     if (result != ESP_OK) {
         increment(stats_[active_band_].radio_errors);

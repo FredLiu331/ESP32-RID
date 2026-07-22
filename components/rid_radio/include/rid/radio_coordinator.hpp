@@ -23,7 +23,7 @@ public:
     uint8_t channel() const { return current_channel_; }
 
 private:
-    static constexpr size_t kQueueCapacity = 64;
+    static constexpr size_t kQueueCapacity = 16;
     static size_t band_index(Transport transport);
     static uint8_t band_channel(size_t band);
     size_t earliest_index(size_t band) const;
