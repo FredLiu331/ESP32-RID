@@ -1,5 +1,8 @@
 #include <array>
+#include <cstdio>
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "esp_log.h"
 #include "esp_mac.h"
@@ -18,6 +21,7 @@
 #include "rid/radio_coordinator.hpp"
 #include "rid/ble_transport.hpp"
 #include "rid/runtime.hpp"
+#include "rid/shell.hpp"
 #include "rid/wifi_transport.hpp"
 
 namespace {
@@ -78,8 +82,11 @@ struct RuntimeContext {
     rid::RadioCoordinator wifi{wifi_backend};
     rid::NimbleBleGapBackend ble_backend{g_nimble_address_type};
     rid::BleTransport ble{ble_backend};
+    rid::NvsConfigStore store;
+    SemaphoreHandle_t runtime_mutex{nullptr};
     std::unique_ptr<RadioSink> sink;
     std::unique_ptr<rid::Runtime> runtime;
+    std::unique_ptr<rid::Shell> shell;
 };
 
 RuntimeContext *g_context;
@@ -87,7 +94,8 @@ RuntimeContext *g_context;
 void runtime_task(void *) {
     while (true) {
         const uint64_t now = static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL;
-        if (g_context->runtime != nullptr) {
+        if (g_context->runtime != nullptr && g_context->runtime->running() &&
+            xSemaphoreTake(g_context->runtime_mutex, portMAX_DELAY) == pdTRUE) {
             g_context->runtime->tick(now);
             for (size_t attempt = 0; attempt < kMaxWifiPollsPerTick; ++attempt) {
                 const size_t pending = g_context->wifi.depth(rid::Transport::Wifi24) +
@@ -95,8 +103,31 @@ void runtime_task(void *) {
                 if (pending == 0 || g_context->wifi.poll(now) != ESP_OK) break;
             }
             g_context->ble.poll(now);
+            xSemaphoreGive(g_context->runtime_mutex);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+void shell_task(void *) {
+    rid::ShellLineBuffer input;
+    ESP_LOGI(kTag, "RID shell ready");
+    while (true) {
+        const int character = std::fgetc(stdin);
+        if (character == EOF) {
+            clearerr(stdin);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+        const auto event = input.push(static_cast<char>(character));
+        if (event == rid::ShellLineEvent::TooLong) {
+            std::fputs("ERR LINE_TOO_LONG\n", stdout);
+            std::fflush(stdout);
+        } else if (event == rid::ShellLineEvent::Ready) {
+            const std::string response = g_context->shell->handle(input.take());
+            std::fputs(response.c_str(), stdout);
+            std::fflush(stdout);
+        }
     }
 }
 
@@ -129,29 +160,54 @@ extern "C" void app_main(void)
         return;
     }
     context->sink = std::make_unique<RadioSink>(context->wifi, context->ble);
+    context->runtime = std::make_unique<rid::Runtime>(rid::DeviceId{mac}, *context->sink);
+    context->runtime_mutex = xSemaphoreCreateMutex();
+    if (context->runtime_mutex == nullptr) {
+        ESP_LOGE(kTag, "failed to create runtime mutex");
+        return;
+    }
 
-    rid::NvsConfigStore store;
-    const auto loaded = store.load();
+    const auto loaded = context->store.load();
+    rid::SystemConfig staged = rid::default_config();
+    std::optional<rid::SystemConfig> applied;
+    uint32_t generation = 0;
     if (loaded.ok()) {
-        context->runtime = std::make_unique<rid::Runtime>(rid::DeviceId{mac}, *context->sink);
+        staged = loaded.value->config;
+        generation = loaded.value->generation;
         const uint64_t now = static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL;
         const auto result = context->runtime->apply(loaded.value->config, now);
         if (result == rid::RuntimeError::None) {
+            applied = loaded.value->config;
             ESP_LOGI(kTag, "auto-start generation=%lu aircraft=%u",
                      static_cast<unsigned long>(loaded.value->generation),
                      static_cast<unsigned>(context->runtime->aircraft_count()));
         } else {
             ESP_LOGE(kTag, "stored configuration rejected; staying idle");
-            context->runtime.reset();
         }
     } else {
         ESP_LOGW(kTag, "no valid stored configuration; staying idle");
     }
-    g_context = context.get();
+    context->shell = std::make_unique<rid::Shell>(staged, rid::DeviceId{mac}, applied, generation);
+    RuntimeContext *context_ptr = context.get();
+    context->shell->set_apply_callback(
+        [context_ptr](const rid::SystemConfig &config, uint32_t) {
+            if (xSemaphoreTake(context_ptr->runtime_mutex, portMAX_DELAY) != pdTRUE) return false;
+            const uint64_t now = static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL;
+            const bool ok = context_ptr->runtime->apply(config, now) == rid::RuntimeError::None;
+            xSemaphoreGive(context_ptr->runtime_mutex);
+            return ok;
+        });
+    context->shell->set_save_callback(
+        [context_ptr](const rid::SystemConfig &config, uint32_t next_generation) {
+            return context_ptr->store.save(config, next_generation) == rid::NvsStoreError::None;
+        });
+
+    g_context = context.release();
     if (xTaskCreate(runtime_task, "rid_runtime", 12288, nullptr, 5, nullptr) != pdPASS) {
-        g_context = nullptr;
         ESP_LOGE(kTag, "failed to create RID runtime task");
         return;
     }
-    context.release();
+    if (xTaskCreate(shell_task, "rid_shell", 6144, nullptr, 4, nullptr) != pdPASS) {
+        ESP_LOGE(kTag, "failed to create RID shell task");
+    }
 }
