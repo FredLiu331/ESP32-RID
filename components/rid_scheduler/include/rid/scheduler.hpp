@@ -10,8 +10,8 @@
 
 namespace rid {
 
-// 153-byte OpenDroneID Message Pack plus the 5-byte BLE Service Data envelope.
-constexpr size_t kMaxScheduledPayloadSize = 158;
+// Large enough for a complete raw 802.11 Beacon. BLE limits remain transport-specific.
+constexpr size_t kMaxScheduledPayloadSize = 512;
 
 enum class ScheduleError : uint8_t {
     None,

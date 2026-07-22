@@ -98,6 +98,19 @@ WifiFrameError build_gb_beacon(WifiFrame &destination, const uint8_t address[6],
     return WifiFrameError::None;
 }
 
+WifiFrameError build_opendroneid_beacon(WifiFrame &destination, const uint8_t address[6],
+                                        ByteView ssid, uint8_t counter,
+                                        ByteView message_pack) {
+    if (message_pack.data == nullptr || message_pack.size < 28 ||
+        (message_pack.data[0] & 0xf0U) != 0xf0U || message_pack.data[1] != 25 ||
+        message_pack.data[2] != (message_pack.size - 3) / 25 ||
+        (message_pack.size - 3) % 25 != 0) {
+        destination.size = 0;
+        return WifiFrameError::InvalidArgument;
+    }
+    return build_gb_beacon(destination, address, ssid, counter, message_pack);
+}
+
 WifiFrameError validate_opendroneid_beacon(ByteView frame) {
     if (frame.data == nullptr || frame.size < kBeaconHeaderSize + kBeaconFixedBodySize + 2 ||
         frame.size > kMaxWifiFrameSize || (frame.data[0] & 0xfcU) != 0x80U) {

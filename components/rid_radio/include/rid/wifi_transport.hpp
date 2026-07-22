@@ -27,6 +27,9 @@ struct WifiFrame {
 
 WifiFrameError build_gb_beacon(WifiFrame &destination, const uint8_t address[6],
                                ByteView ssid, uint8_t counter, ByteView gb_payload);
+WifiFrameError build_opendroneid_beacon(WifiFrame &destination, const uint8_t address[6],
+                                        ByteView ssid, uint8_t counter,
+                                        ByteView message_pack);
 
 // Validates only the outer Beacon structure supplied by an external ODID implementation.
 // This does not validate or construct OpenDroneID protocol elements.

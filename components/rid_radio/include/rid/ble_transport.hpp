@@ -15,7 +15,7 @@ namespace rid {
 
 // Limits apply to complete Advertising Data, including AD headers and service metadata.
 constexpr size_t kBleLegacyMaxPayloadSize = 31;
-constexpr size_t kBleExtendedMaxPayloadSize = kMaxScheduledPayloadSize;
+constexpr size_t kBleExtendedMaxPayloadSize = 158;
 constexpr size_t kMaxBlePendingPayloads = 100;
 constexpr size_t kOpenDroneIdMaxEncodedSize = 153;
 
