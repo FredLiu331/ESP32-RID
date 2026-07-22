@@ -20,6 +20,14 @@ class ReceiverRecord:
     longitude: float
 
 
+@dataclass(frozen=True)
+class BaselineResult:
+    discovered_ids: set[str]
+    malformed_payloads: int
+    discovery_time_s: float | None
+    primary_delivery_ratio: float
+
+
 _REQUIRED = {
     "timestamp_ms",
     "test_id",
@@ -79,6 +87,25 @@ def summarize(records: Iterable[ReceiverRecord]) -> dict[str, object]:
         "discovered_ids": sorted(ids),
         "discovery_time_s": None if first is None or last is None else (last - first) / 1000,
     }
+
+
+def evaluate_baseline(records: Iterable[ReceiverRecord], expected_ids: set[str],
+                      primary_kind: str = "location") -> BaselineResult:
+    """计算验收断言所需的四项指标。"""
+    rows = list(records)
+    valid = [row for row in rows if row.valid]
+    first_seen = {}
+    for row in valid:
+        first_seen.setdefault(row.test_id, row.timestamp_ms)
+    discovered = set(first_seen) & expected_ids
+    discovery_time = None
+    if len(discovered) == len(expected_ids) and expected_ids:
+        discovery_time = (max(first_seen[test_id] for test_id in expected_ids) -
+                          min(first_seen[test_id] for test_id in expected_ids)) / 1000
+    primary = [row for row in rows if row.message_kind == primary_kind]
+    primary_valid = sum(row.valid for row in primary)
+    ratio = primary_valid / len(primary) if primary else 0.0
+    return BaselineResult(discovered, sum(not row.valid for row in rows), discovery_time, ratio)
 
 
 def main() -> int:
