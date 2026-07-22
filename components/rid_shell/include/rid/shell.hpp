@@ -12,10 +12,18 @@ namespace rid {
 
 constexpr size_t kShellMaxLineSize = 255;
 enum class ShellLineEvent : uint8_t { None, Ready, TooLong };
+enum class ShellEcho : uint8_t { None, Character, Newline, Erase };
+
+struct ShellLineResult {
+    ShellLineEvent event{ShellLineEvent::None};
+    ShellEcho echo{ShellEcho::None};
+    char character{0};
+    size_t erase_count{0};
+};
 
 class ShellLineBuffer {
 public:
-    ShellLineEvent push(char character);
+    ShellLineResult push(char character);
     std::string take();
 
 private:
@@ -23,6 +31,7 @@ private:
     size_t size_{0};
     bool overflow_{false};
     bool last_was_cr_{false};
+    uint8_t escape_state_{0};
 };
 
 class Shell {

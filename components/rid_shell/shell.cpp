@@ -57,28 +57,56 @@ size_t aircraft_count(const SystemConfig &config) {
 
 }  // namespace
 
-ShellLineEvent ShellLineBuffer::push(char character) {
+ShellLineResult ShellLineBuffer::push(char character) {
     if (character == '\n' && last_was_cr_) {
         last_was_cr_ = false;
-        return ShellLineEvent::None;
+        return {};
     }
     if (character == '\r' || character == '\n') {
         last_was_cr_ = character == '\r';
+        escape_state_ = 0;
         if (overflow_) {
             overflow_ = false;
             size_ = 0;
-            return ShellLineEvent::TooLong;
+            return {ShellLineEvent::TooLong, ShellEcho::Newline};
         }
-        return size_ == 0 ? ShellLineEvent::None : ShellLineEvent::Ready;
+        const auto event = size_ == 0 ? ShellLineEvent::None : ShellLineEvent::Ready;
+        return {event, ShellEcho::Newline};
     }
     last_was_cr_ = false;
-    if (overflow_) return ShellLineEvent::None;
+
+    const auto byte = static_cast<unsigned char>(character);
+    if (escape_state_ == 1) {
+        escape_state_ = character == '[' ? 2 : 0;
+        return {};
+    }
+    if (escape_state_ == 2) {
+        if (byte >= 0x40U && byte <= 0x7eU) escape_state_ = 0;
+        return {};
+    }
+    if (byte == 0x1bU) {
+        escape_state_ = 1;
+        return {};
+    }
+    if (byte == 0x15U) {
+        const size_t erased = size_;
+        size_ = 0;
+        overflow_ = false;
+        return {ShellLineEvent::None, erased == 0 ? ShellEcho::None : ShellEcho::Erase,
+                0, erased};
+    }
+    if (byte == 0x08U || byte == 0x7fU) {
+        if (overflow_ || size_ == 0) return {};
+        --size_;
+        return {ShellLineEvent::None, ShellEcho::Erase, 0, 1};
+    }
+    if (byte < 0x20U || byte > 0x7eU || overflow_) return {};
     if (size_ == bytes_.size()) {
         overflow_ = true;
-        return ShellLineEvent::None;
+        return {};
     }
     bytes_[size_++] = character;
-    return ShellLineEvent::None;
+    return {ShellLineEvent::None, ShellEcho::Character, character};
 }
 
 std::string ShellLineBuffer::take() {

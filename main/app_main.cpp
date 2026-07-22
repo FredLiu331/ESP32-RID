@@ -26,6 +26,7 @@
 
 namespace {
 constexpr char kTag[] = "rid";
+constexpr char kShellPrompt[] = "rid> ";
 constexpr size_t kMaxWifiPollsPerTick = 8;
 SemaphoreHandle_t g_nimble_sync;
 uint8_t g_nimble_address_type;
@@ -112,6 +113,8 @@ void runtime_task(void *) {
 void shell_task(void *) {
     rid::ShellLineBuffer input;
     ESP_LOGI(kTag, "RID shell ready");
+    std::fputs(kShellPrompt, stdout);
+    std::fflush(stdout);
     while (true) {
         const int character = std::fgetc(stdin);
         if (character == EOF) {
@@ -119,15 +122,27 @@ void shell_task(void *) {
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
-        const auto event = input.push(static_cast<char>(character));
-        if (event == rid::ShellLineEvent::TooLong) {
+        const auto result = input.push(static_cast<char>(character));
+        if (result.echo == rid::ShellEcho::Character) {
+            std::fputc(result.character, stdout);
+        } else if (result.echo == rid::ShellEcho::Newline) {
+            std::fputs("\r\n", stdout);
+        } else if (result.echo == rid::ShellEcho::Erase) {
+            for (size_t index = 0; index < result.erase_count; ++index) {
+                std::fputs("\b \b", stdout);
+            }
+        }
+        if (result.event == rid::ShellLineEvent::TooLong) {
             std::fputs("ERR LINE_TOO_LONG\n", stdout);
-            std::fflush(stdout);
-        } else if (event == rid::ShellLineEvent::Ready) {
+            std::fputs(kShellPrompt, stdout);
+        } else if (result.event == rid::ShellLineEvent::Ready) {
             const std::string response = g_context->shell->handle(input.take());
             std::fputs(response.c_str(), stdout);
-            std::fflush(stdout);
+            std::fputs(kShellPrompt, stdout);
+        } else if (result.echo == rid::ShellEcho::Newline) {
+            std::fputs(kShellPrompt, stdout);
         }
+        std::fflush(stdout);
     }
 }
 
@@ -135,6 +150,7 @@ void shell_task(void *) {
 
 extern "C" void app_main(void)
 {
+    esp_log_level_set("NimBLE", ESP_LOG_WARN);
     esp_err_t nvs_error = nvs_flash_init();
     if (nvs_error == ESP_ERR_NVS_NO_FREE_PAGES || nvs_error == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         nvs_error = nvs_flash_erase();

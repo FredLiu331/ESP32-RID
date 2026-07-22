@@ -55,14 +55,49 @@ TEST_CASE("shell line buffer waits for a complete UART command", "[shell]") {
     rid::ShellLineBuffer input;
     const std::string command = "config check";
     for (const char character : command) {
-        TEST_ASSERT_EQUAL(rid::ShellLineEvent::None, input.push(character));
+        const auto result = input.push(character);
+        TEST_ASSERT_EQUAL(rid::ShellLineEvent::None, result.event);
+        TEST_ASSERT_EQUAL(rid::ShellEcho::Character, result.echo);
+        TEST_ASSERT_EQUAL_CHAR(character, result.character);
     }
-    TEST_ASSERT_EQUAL(rid::ShellLineEvent::Ready, input.push('\r'));
+    const auto ready = input.push('\r');
+    TEST_ASSERT_EQUAL(rid::ShellLineEvent::Ready, ready.event);
+    TEST_ASSERT_EQUAL(rid::ShellEcho::Newline, ready.echo);
     TEST_ASSERT_EQUAL_STRING(command.c_str(), input.take().c_str());
-    TEST_ASSERT_EQUAL(rid::ShellLineEvent::None, input.push('\n'));
+    TEST_ASSERT_EQUAL(rid::ShellEcho::None, input.push('\n').echo);
 
     for (size_t index = 0; index < rid::kShellMaxLineSize + 1; ++index) {
-        TEST_ASSERT_EQUAL(rid::ShellLineEvent::None, input.push('x'));
+        TEST_ASSERT_EQUAL(rid::ShellLineEvent::None, input.push('x').event);
     }
-    TEST_ASSERT_EQUAL(rid::ShellLineEvent::TooLong, input.push('\n'));
+    TEST_ASSERT_EQUAL(rid::ShellLineEvent::TooLong, input.push('\n').event);
+}
+
+TEST_CASE("shell line buffer supports terminal editing", "[shell]") {
+    rid::ShellLineBuffer input;
+    input.push('a');
+    input.push('b');
+    auto edit = input.push('\b');
+    TEST_ASSERT_EQUAL(rid::ShellEcho::Erase, edit.echo);
+    TEST_ASSERT_EQUAL_UINT32(1, edit.erase_count);
+    input.push('c');
+    TEST_ASSERT_EQUAL_STRING("ac", input.take().c_str());
+
+    input.push('x');
+    input.push('y');
+    edit = input.push(0x15);
+    TEST_ASSERT_EQUAL(rid::ShellEcho::Erase, edit.echo);
+    TEST_ASSERT_EQUAL_UINT32(2, edit.erase_count);
+    TEST_ASSERT_EQUAL_STRING("", input.take().c_str());
+
+    input.push('z');
+    edit = input.push(0x7f);
+    TEST_ASSERT_EQUAL(rid::ShellEcho::Erase, edit.echo);
+    TEST_ASSERT_EQUAL_STRING("", input.take().c_str());
+
+    input.push(0x1b);
+    input.push('[');
+    input.push('A');
+    input.push('o');
+    input.push('k');
+    TEST_ASSERT_EQUAL_STRING("ok", input.take().c_str());
 }
