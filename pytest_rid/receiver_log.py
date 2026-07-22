@@ -90,8 +90,11 @@ def summarize(records: Iterable[ReceiverRecord]) -> dict[str, object]:
 
 
 def evaluate_baseline(records: Iterable[ReceiverRecord], expected_ids: set[str],
+                      expected_primary_messages: int,
                       primary_kind: str = "location") -> BaselineResult:
     """计算验收断言所需的四项指标。"""
+    if expected_primary_messages <= 0:
+        raise ValueError("expected_primary_messages must be positive")
     rows = list(records)
     valid = [row for row in rows if row.valid]
     first_seen = {}
@@ -102,9 +105,8 @@ def evaluate_baseline(records: Iterable[ReceiverRecord], expected_ids: set[str],
     if len(discovered) == len(expected_ids) and expected_ids:
         discovery_time = (max(first_seen[test_id] for test_id in expected_ids) -
                           min(first_seen[test_id] for test_id in expected_ids)) / 1000
-    primary = [row for row in rows if row.message_kind == primary_kind]
-    primary_valid = sum(row.valid for row in primary)
-    ratio = primary_valid / len(primary) if primary else 0.0
+    primary_valid = sum(row.valid and row.message_kind == primary_kind for row in rows)
+    ratio = min(1.0, primary_valid / expected_primary_messages)
     return BaselineResult(discovered, sum(not row.valid for row in rows), discovery_time, ratio)
 
 

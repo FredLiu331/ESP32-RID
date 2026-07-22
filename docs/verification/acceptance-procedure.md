@@ -9,6 +9,9 @@
 PYTHONPATH=pytest_rid python pytest_rid/receiver_log.py receiver.jsonl
 ```
 
+送达率分母必须由架次、消息周期和有效观测时长计算得到，不能用接收日志行数代替；验收断言
+调用 `evaluate_baseline(..., expected_primary_messages=N)` 时必须传入该预期总数。
+
 ## 1/10/50 架基准
 
 对 1、10、50 架分别执行：清空暂存组、设置中心点、添加一个或多个组、`config check`、
