@@ -4,7 +4,7 @@
 
 **目标：** 在微雪 ESP32-C5-WIFI6-KIT-N32R8 和 ESP-IDF v5.5.4 上实现可配置模拟 1～50 架无人机的 GB 46750-2025/OpenDroneID RID 信号发生器。
 
-**架构：** 系统以不可变配置快照驱动机群展开、轨迹计算和统一飞行状态，再经独立协议编码器进入截止时间调度器。BLE4、BLE5、Wi-Fi Beacon 和 Wi-Fi NAN 由射频协调器统一管理，单颗 ESP32-C5 在信道 6 与 149 间切换，实现逻辑双频并行。
+**架构：** 系统以不可变配置快照驱动机群展开、轨迹计算和统一飞行状态，再经独立协议编码器进入截止时间调度器。BLE4、BLE5 和 Wi-Fi Beacon 由射频协调器统一管理，单颗 ESP32-C5 在信道 6 与 149 间切换，实现逻辑双频并行；NAN 不属于产品 RID 承载。
 
 **技术栈：** ESP-IDF v5.5.4、ESP32-C5、C++17、FreeRTOS、NVS、NimBLE、ESP-IDF Wi-Fi API、Unity、pytest-embedded、`opendroneid-core-c`。
 
@@ -32,7 +32,7 @@ components/rid_odid/odid_encoder.cpp   OpenDroneID 编码适配
 components/rid_gb/gb_encoder.cpp       GB 46750 编码
 components/rid_scheduler/scheduler.cpp 截止时间与队列过载策略
 components/rid_radio/ble_transport.cpp BLE4/BLE5 复用
-components/rid_radio/wifi_transport.cpp Beacon/NAN 原始帧发送
+components/rid_radio/wifi_transport.cpp Beacon 原始帧发送
 components/rid_radio/radio_coordinator.cpp 共存和信道切换
 components/rid_runtime/runtime.cpp      配置快照到运行任务的协调
 components/rid_shell/shell.cpp          交互式 Shell 命令
@@ -219,7 +219,7 @@ pytest -q pytest_rid/test_radio_probe.py --target esp32c5
 
 - [ ] **步骤 3：实现最小探针**
 
-探针使用 `esp_wifi_80211_tx()` 分别发送合法最小 Beacon 和 NAN Action 帧；使用 NimBLE GAP API 启动 Legacy 与 Extended Advertising。每个 API 调用必须检查 `esp_err_t`，只有提交成功且发送完成回调达到设定次数才输出 `PASS`。
+探针使用 `esp_wifi_80211_tx()` 分别发送合法最小 Beacon；使用 NimBLE GAP API 启动 Legacy 与 Extended Advertising。每个 API 调用必须检查 `esp_err_t`，只有提交成功且发送完成回调达到设定次数才输出 `PASS`。
 
 核心结果类型：
 
@@ -298,7 +298,7 @@ idf.py -C test_apps/logic build flash monitor
 namespace rid {
 enum class Protocol : uint8_t { Gb46750, OpenDroneId };
 enum class Transport : uint8_t { Ble4, Ble5, Wifi24, Wifi58 };
-enum class WifiMode : uint8_t { Beacon, Nan };
+enum class WifiMode : uint8_t { Beacon, Nan }; // Nan 保留枚举值但当前配置禁止
 enum class MessageKind : uint8_t {
     BasicId,
     Location,
@@ -640,7 +640,7 @@ git add components/rid_radio test_apps/integration
 git commit -m "feat: 添加 BLE RID 承载复用"
 ```
 
-### 任务 10：实现 Wi-Fi Beacon/NAN 与双频跳转
+### 任务 10：实现 Wi-Fi Beacon 与双频跳转
 
 **文件：**
 - 创建：`components/rid_radio/include/rid/wifi_transport.hpp`
@@ -664,7 +664,7 @@ TEST_CASE("coordinator stays on the only active band", "[wifi]") {
 }
 ```
 
-逐字节测试 Beacon Vendor IE 和 NAN Action 帧，测试信道 6/149 加权驻留、空队列不切换、切换失败重试和国家码固定为 `CN`。
+逐字节测试 Beacon Vendor IE，测试信道 6/149 加权驻留、空队列不切换、切换失败重试和国家码固定为 `CN`。NAN 不属于产品 RID 承载，不实现原生或原始帧仿真。
 
 - [ ] **步骤 2：实现公开 API 后端**
 
@@ -684,7 +684,7 @@ public:
 
 - [ ] **步骤 3：完成支持矩阵**
 
-`transport-matrix.md` 对 GB/OpenDroneID 与 BLE4、BLE5、Wi-Fi Beacon、Wi-Fi NAN 的每种组合标注“标准允许/标准禁止/板上已验证”。运行时校验直接使用同一张编译期表。
+`transport-matrix.md` 对 GB/OpenDroneID 与 BLE4、BLE5、Wi-Fi Beacon 的每种组合标注“标准允许/工程禁止/板上已验证”。NAN 组合统一标注“工程禁止”。运行时校验直接使用同一张编译期表。
 
 - [ ] **步骤 4：板上运行双频与 BLE 共存测试并提交**
 

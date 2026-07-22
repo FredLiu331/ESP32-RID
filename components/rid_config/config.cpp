@@ -23,8 +23,7 @@ bool valid_site(const GeoPoint &site) {
 }
 
 bool supported(const GroupConfig &group) {
-    const bool known_wifi_mode =
-        group.wifi_mode == WifiMode::Beacon || group.wifi_mode == WifiMode::Nan;
+    const bool known_wifi_mode = group.wifi_mode == WifiMode::Beacon;
     const bool wifi = group.transport == Transport::Wifi24 || group.transport == Transport::Wifi58;
     const bool ble = group.transport == Transport::Ble4 || group.transport == Transport::Ble5;
     if (!known_wifi_mode || (!wifi && !ble)) return false;

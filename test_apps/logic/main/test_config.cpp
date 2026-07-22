@@ -83,7 +83,8 @@ TEST_CASE("site and all period levels are validated", "[config]") {
 
     config.groups[0].default_period = 2s;
     config.groups[0].period_overrides[static_cast<size_t>(rid::MessageKind::Location)] = 500ms;
-    TEST_ASSERT_TRUE(rid::validate(config).ok());
+    TEST_ASSERT_EQUAL(rid::ConfigError::UnsupportedCombination,
+                      rid::validate(config).error());
     TEST_ASSERT_EQUAL_INT32(500, rid::effective_period(
                                      config, config.groups[0], rid::MessageKind::Location)
                                      .count());
